@@ -107,6 +107,50 @@ All state-changing forms carry a per-session CSRF token.
 python -m pytest tests -q
 ```
 
+## Deploying to Render
+
+Create a **Web Service** from the GitHub repo. Leave *Root Directory* empty
+(commands below run from the repo root — this is what fixes
+`Could not open requirements file ... requirements.txt`).
+
+| Field | Value |
+|---|---|
+| Root Directory | *(leave empty)* |
+| Build command | `pip install -r server/requirements.txt` |
+| Start command | `gunicorn --chdir server --bind 0.0.0.0:$PORT wsgi:app` |
+
+`$PORT` is assigned by Render per instance and is the only port it routes to,
+so the bind address must be `0.0.0.0:$PORT` — not `127.0.0.1:5000`.
+
+Set these under **Environment**:
+
+| Key | Notes |
+|---|---|
+| `ADMIN_PASSWORD` | Admin console password (defaults to `admin` — change it) |
+| `API_KEY` | Long random string the APK must send in `X-API-Key` |
+| `SECRET_KEY` | Long random string; without it admin logins break on every restart |
+| `ADMIN_USERNAME` | Optional, defaults to `admin` |
+
+Generate values with:
+
+```powershell
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### ⚠️ SQLite is wiped on Render
+
+Render's filesystem is **ephemeral**: `server/instance/budget.db` is deleted on
+every deploy, restart, and free-tier spin-down. Pick one:
+
+1. **Persistent disk** (paid) — mount it, then set `BUDGET_DB=/var/data/budget.db`.
+   The app creates the directory itself; no code changes.
+2. **Demo only** — accept the data loss on free tier.
+3. **Postgres** (Render free tier includes one) — no data loss, but requires
+   porting `db.py` off SQLite (`INSERT OR IGNORE`, `strftime`, `PRAGMA`).
+
+Free-tier services also **spin down after 15 min idle** — the first request
+afterwards takes ~30 s.
+
 ## Production notes
 
 - Behind a reverse proxy (nginx/Caddy), terminate TLS there and set
@@ -120,7 +164,8 @@ python -m pytest tests -q
 
 ```
 server/
-├── run.py                    # dev entry point
+├── run.py                    # dev entry point (Flask dev server)
+├── wsgi.py                   # production entry point (gunicorn)
 ├── requirements.txt
 ├── budget_server/
 │   ├── __init__.py           # app factory + config
