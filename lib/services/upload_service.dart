@@ -12,6 +12,7 @@ Future<String> sendTransactions({
   required List<Transaction> transactions,
   String? ownerName,
   String? ownerPhone,
+  String apiKey = '',
   int limit = 200,
 }) async {
   final uri = Uri.tryParse(url.trim());
@@ -26,6 +27,7 @@ Future<String> sendTransactions({
     final request = await client.postUrl(uri);
     request.headers.contentType = ContentType.json;
     request.headers.set('User-Agent', 'BudgetApp/0.2');
+    if (apiKey.isNotEmpty) request.headers.set('X-API-Key', apiKey);
     request.write(jsonEncode({
       'owner': {'name': ownerName, 'phone': ownerPhone},
       'sentAt': DateTime.now().toIso8601String(),

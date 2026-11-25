@@ -84,6 +84,29 @@ def test_sync_rejects_invalid_transactions_atomically(client, sample_tx):
         assert count == 0
 
 
+def test_sync_accepts_android_app_payload(client, sample_tx):
+    """The APK sends `owner: {name, phone}` rather than top-level phone/profile."""
+    resp = sync(
+        client,
+        {
+            "owner": {"name": "Elias Tsegaye", "phone": "+251911223344"},
+            "sentAt": "2026-11-26T01:20:00.000",
+            "count": 1,
+            "transactions": [sample_tx()],
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["created"] is True
+    assert body["accepted"] == 1
+    with client.application.app_context():
+        from budget_server.db import get_db
+
+        user = get_db().execute("SELECT * FROM users").fetchone()
+        assert user["phone"] == "+251911223344"
+        assert user["name"] == "Elias Tsegaye"
+
+
 def test_sync_accepts_iso_date_and_computes_dedupe(client, sample_tx):
     tx = sample_tx(date_ms=None, date="2026-01-15T10:30:00")
     tx.pop("date_ms")

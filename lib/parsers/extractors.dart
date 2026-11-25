@@ -199,6 +199,12 @@ const _junkMerchants = {
   'to', 'at', 'from', 'on', 'for', 'inr', 'rs', 'usd', 'card', 'acc',
 };
 
+// Verbs that start instruction phrases ("to download your receipt").
+const _junkVerbs = {
+  'download', 'view', 'click', 'check', 'see', 'call', 'visit', 'apply',
+  'download your', 'view your', 'check your', 'read',
+};
+
 String? extractMerchant(String body) {
   for (final re in [
     _vpaRe,
@@ -224,6 +230,10 @@ String? _cleanMerchant(String raw) {
   if (s.length < 2) return null;
   final low = s.toLowerCase();
   if (_junkMerchants.contains(low)) return null;
+  if (_junkVerbs.contains(low) ||
+      _junkVerbs.contains(low.split(' ').first)) {
+    return null;
+  }
   if (low.startsWith('your') ||
       low.startsWith('account') ||
       low.startsWith('acct') ||

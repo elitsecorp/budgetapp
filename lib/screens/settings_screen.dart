@@ -21,6 +21,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _apkCtrl;
   late final TextEditingController _serverCtrl;
+  late final TextEditingController _apiKeyCtrl;
   bool _busy = false;
 
   @override
@@ -32,6 +33,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _phoneCtrl = TextEditingController(text: s.ownerPhone);
     _apkCtrl = TextEditingController(text: s.apkUrl);
     _serverCtrl = TextEditingController(text: s.serverUrl);
+    _apiKeyCtrl = TextEditingController(text: s.serverApiKey);
   }
 
   @override
@@ -40,6 +42,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _phoneCtrl.dispose();
     _apkCtrl.dispose();
     _serverCtrl.dispose();
+    _apiKeyCtrl.dispose();
     super.dispose();
   }
 
@@ -220,6 +223,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       transactions: tx,
       ownerName: s.ownerName.isEmpty ? null : s.ownerName,
       ownerPhone: s.ownerPhone.isEmpty ? null : s.ownerPhone,
+      apiKey: s.serverApiKey,
     );
     if (!mounted) return;
     setState(() => _busy = false);
@@ -455,6 +459,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     onChanged: (v) =>
                         ref.read(settingsProvider.notifier).setServerUrl(v),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _apiKeyCtrl,
+                    obscureText: true,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    decoration: const InputDecoration(
+                      hintText: 'API key (if the server requires one)',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                      prefixIcon: Icon(Icons.key),
+                    ),
+                    onChanged: (v) =>
+                        ref.read(settingsProvider.notifier).setServerApiKey(v),
                   ),
                   const SizedBox(height: 12),
                   FilledButton.icon(

@@ -29,6 +29,7 @@ class AppSettings {
   final String ownerPhone;
   final String apkUrl;
   final String serverUrl;
+  final String serverApiKey;
   final bool excludeTransfers;
   final double maxAmount; // 0 = no limit
   final bool contactLookup;
@@ -38,6 +39,7 @@ class AppSettings {
     this.ownerPhone = '',
     this.apkUrl = '',
     this.serverUrl = 'https://httpbin.org/post',
+    this.serverApiKey = '',
     this.excludeTransfers = false,
     this.maxAmount = 0,
     this.contactLookup = false,
@@ -48,6 +50,7 @@ class AppSettings {
     String? ownerPhone,
     String? apkUrl,
     String? serverUrl,
+    String? serverApiKey,
     bool? excludeTransfers,
     double? maxAmount,
     bool? contactLookup,
@@ -57,6 +60,7 @@ class AppSettings {
         ownerPhone: ownerPhone ?? this.ownerPhone,
         apkUrl: apkUrl ?? this.apkUrl,
         serverUrl: serverUrl ?? this.serverUrl,
+        serverApiKey: serverApiKey ?? this.serverApiKey,
         excludeTransfers: excludeTransfers ?? this.excludeTransfers,
         maxAmount: maxAmount ?? this.maxAmount,
         contactLookup: contactLookup ?? this.contactLookup,
@@ -67,6 +71,7 @@ const _kOwnerName = 'owner_name';
 const _kOwnerPhone = 'owner_phone';
 const _kApkUrl = 'apk_url';
 const _kServerUrl = 'server_url';
+const _kServerApiKey = 'server_api_key';
 const _kExcludeTransfers = 'exclude_transfers';
 const _kMaxAmount = 'max_amount';
 const _kContactLookup = 'contact_lookup';
@@ -78,6 +83,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
         ownerPhone: SettingsStore.getString(_kOwnerPhone, ''),
         apkUrl: SettingsStore.getString(_kApkUrl, ''),
         serverUrl: SettingsStore.getString(_kServerUrl, 'https://httpbin.org/post'),
+        serverApiKey: SettingsStore.getString(_kServerApiKey, ''),
         excludeTransfers:
             SettingsStore.getBool(_kExcludeTransfers, false),
         maxAmount: SettingsStore.getDouble(_kMaxAmount, 0),
@@ -101,6 +107,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> setServerUrl(String v) =>
       _persist(() => SettingsStore.setString(_kServerUrl, v.trim()));
+
+  Future<void> setServerApiKey(String v) =>
+      _persist(() => SettingsStore.setString(_kServerApiKey, v.trim()));
 
   Future<void> setExcludeTransfers(bool v) =>
       _persist(() => SettingsStore.setBool(_kExcludeTransfers, v));

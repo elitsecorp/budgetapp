@@ -86,12 +86,24 @@ def _parse_transaction(raw: object) -> dict:
     }
 
 
-def _upsert_user(payload: dict, phone: str) -> tuple[int, bool]:
+def _identify(payload: dict) -> tuple[str, str, str, str, str | None]:
+    """Read identity from either payload shape.
+
+    The Android app sends ``{"owner": {"name", "phone"}, ...}``; a hand-rolled
+    client may send top-level ``phone``/``profile``. Accept both.
+    """
+    owner = payload.get("owner") if isinstance(payload.get("owner"), dict) else {}
     profile = payload.get("profile") if isinstance(payload.get("profile"), dict) else {}
-    name = str(profile.get("name") or payload.get("name") or "").strip()
-    email = str(profile.get("email") or payload.get("email") or "").strip()
-    notes = str(profile.get("notes") or "").strip()
+    phone = str(payload.get("phone") or owner.get("phone") or "").strip()
+    name = str(profile.get("name") or owner.get("name") or payload.get("name") or "").strip()
+    email = str(profile.get("email") or owner.get("email") or payload.get("email") or "").strip()
+    notes = str(profile.get("notes") or payload.get("notes") or "").strip()
     device_id = str(payload.get("device_id") or "").strip() or None
+    return phone, name, email, notes, device_id
+
+
+def _upsert_user(payload: dict, phone: str) -> tuple[int, bool]:
+    _, name, email, notes, device_id = _identify(payload)
 
     user = models.find_user_by_phone(phone)
     if user is None:
@@ -110,7 +122,7 @@ def sync():
     if not isinstance(payload, dict):
         return jsonify({"error": "JSON body required"}), 400
 
-    phone = str(payload.get("phone") or "").strip()
+    phone, _, _, _, _ = _identify(payload)
     if not phone:
         return jsonify({"error": "phone is required"}), 400
 
