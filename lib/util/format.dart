@@ -6,6 +6,10 @@ String currencySymbol(String currency) {
   switch (currency.toUpperCase()) {
     case 'INR':
       return '₹';
+    case 'ETB':
+      return 'Br';
+    case 'KES':
+      return 'Ksh';
     case 'USD':
       return r'$';
     case 'EUR':

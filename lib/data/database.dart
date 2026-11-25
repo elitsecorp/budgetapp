@@ -18,13 +18,14 @@ class BudgetDatabase {
     final path = '${await getDatabasesPath()}/budget.db';
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onConfigure: (db) => db.execute('PRAGMA journal_mode = WAL'),
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE transactions(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sender TEXT NOT NULL,
+            sender_name TEXT,
             bank TEXT NOT NULL,
             merchant TEXT,
             amount REAL NOT NULL,
@@ -39,6 +40,12 @@ class BudgetDatabase {
         ''');
         await db.execute(
             'CREATE INDEX idx_transactions_date ON transactions(date DESC)');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+              'ALTER TABLE transactions ADD COLUMN sender_name TEXT');
+        }
       },
     );
   }
@@ -87,5 +94,25 @@ class BudgetDatabase {
   Future<void> clear() async {
     final db = await _database;
     await db.delete('transactions');
+  }
+
+  /// Distinct sender addresses that still lack a contact name.
+  Future<List<String>> sendersNeedingContact() async {
+    final db = await _database;
+    final rows = await db.rawQuery(
+        "SELECT DISTINCT sender FROM transactions "
+        "WHERE sender_name IS NULL AND sender GLOB '*[0-9]*' "
+        "AND sender NOT GLOB '*[A-Za-z]*'");
+    return rows.map((r) => r['sender'] as String).toList();
+  }
+
+  Future<void> setSenderName(String sender, String name) async {
+    final db = await _database;
+    await db.update(
+      'transactions',
+      {'sender_name': name},
+      where: 'sender = ?',
+      whereArgs: [sender],
+    );
   }
 }

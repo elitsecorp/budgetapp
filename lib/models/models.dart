@@ -29,6 +29,7 @@ class SmsMessage {
 class Transaction {
   final int? id;
   final String sender;
+  final String? senderName; // contact display name for numeric senders
   final String bank;
   final String? merchant;
   final double amount; // always positive; see [type]
@@ -42,6 +43,7 @@ class Transaction {
   const Transaction({
     this.id,
     required this.sender,
+    this.senderName,
     required this.bank,
     this.merchant,
     required this.amount,
@@ -73,6 +75,7 @@ class Transaction {
 
   Map<String, Object?> toMap() => {
         'sender': sender,
+        'sender_name': senderName,
         'bank': bank,
         'merchant': merchant,
         'amount': amount,
@@ -88,6 +91,7 @@ class Transaction {
   factory Transaction.fromMap(Map<String, Object?> m) => Transaction(
         id: m['id'] as int?,
         sender: m['sender'] as String,
+        senderName: m['sender_name'] as String?,
         bank: m['bank'] as String,
         merchant: m['merchant'] as String?,
         amount: (m['amount'] as num).toDouble(),

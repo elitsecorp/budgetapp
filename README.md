@@ -7,9 +7,9 @@ statistics — **100% on-device, no internet required**.
 ## Features
 
 - **Transaction details** — tap any transaction for the full breakdown:
-  amount, merchant, category, bank, balance-after, the classified
-  *"likely reason"* (e.g. `Food order or dining out`), and the **original
-  raw SMS** it was parsed from (selectable + copyable).
+  amount, merchant, category, bank, balance-after, contact name, the
+  classified *"likely reason"* (e.g. `Food order or dining out`), and the
+  **original raw SMS** it was parsed from (selectable + copyable).
 - **Classification** — automatic categories: Food & Dining, Groceries,
   Internet & Phone, Bills & Utilities, Transport, Shopping, Entertainment,
   Health, Travel, Salary & Income, Money Transfer.
@@ -18,6 +18,28 @@ statistics — **100% on-device, no internet required**.
   for year & all-time, category donut, top merchants.
 - **Capture** — live SMS listener + inbox backfill, dedup, works with the
   app closed.
+- **Profile detection** — owner name & phone number are mined from the
+  messages themselves ("Dear Elias Tsegaye Girmaye …", your number quoted
+  repeatedly in telecom SMS), shown and editable in Settings.
+- **Contact names** — optional lookup of contact display names for
+  numeric senders (READ_CONTACTS).
+- **Spending filter** — optionally exclude money transfers and/or
+  ignore transactions above an amount, so big internal moves don't skew
+  spending stats.
+- **App updates** — paste a direct `.apk` link in Settings → the app
+  downloads it and opens the system installer.
+- **Server export** — Settings has a (modifiable) endpoint URL and a
+  **Send** button that POSTs your latest transactions as JSON.
+
+### Supported message formats
+
+Tested against a real 8,644-message corpus: Indian formats (Rs./INR) and
+Ethiopian formats (**ETB/Birr**, `dd/mm/yyyy`, CBE/BOA/Dashen/NIB/Gadaa
+senders, telebirr, CNETPay POS, EEU utility bills). Guards: OTP rejection,
+lender repayment/due-date reminder rejection, UPI/VPA-handle merchants,
+parenthesized payees `(Name)`, possessive payees (`to Hana Chala Ibsa's
+account`), and expanded balance phrasings (`available limit`,
+`current balance`, `outstanding`…).
 
 ## How it works
 

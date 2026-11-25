@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../models/models.dart';
 import '../providers/transaction_providers.dart';
+import '../services/settings_service.dart';
 import '../stats/stats_engine.dart';
 import '../util/format.dart';
 import '../util/import_actions.dart';
@@ -74,18 +75,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final theme = Theme.of(context);
     final now = DateTime.now();
     final from = _from;
+    final settings = ref.watch(settingsProvider);
+
+    // Spending filter from Settings: optionally drop money-transfers and
+    // very large amounts so one big internal move doesn't skew the stats.
+    bool include(Transaction t) {
+      if (settings.excludeTransfers && t.category == 'Money Transfer') {
+        return false;
+      }
+      if (settings.maxAmount > 0 && t.amount > settings.maxAmount) {
+        return false;
+      }
+      return true;
+    }
+
     final rangeTx =
         from == null ? tx : tx.where((t) => !t.date.isBefore(from)).toList();
+    final spendTx = rangeTx
+        .where((t) => t.type == TxType.debit && include(t))
+        .toList();
+    final statTx = rangeTx.where(include).toList();
 
-    final spent = StatsEngine.sum(rangeTx, TxType.debit, from: from);
+    final spent = spendTx.fold<double>(0, (s, t) => s + t.amount);
     final received = StatsEngine.sum(rangeTx, TxType.credit, from: from);
-    final purchaseCount =
-        rangeTx.where((t) => t.type == TxType.debit).length;
+    final purchaseCount = spendTx.length;
     final avg = purchaseCount == 0 ? 0.0 : spent / purchaseCount;
     final categories =
-        StatsEngine.byCategory(rangeTx, days: _days, now: now);
+        StatsEngine.byCategory(statTx, days: _days, now: now);
     final topMerchants =
-        StatsEngine.topMerchants(rangeTx, limit: 5, days: _days, now: now);
+        StatsEngine.topMerchants(statTx, limit: 5, days: _days, now: now);
     final currency = currencyFor(tx);
 
     return ListView(
@@ -155,12 +173,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         if (_range == _Range.week || _range == _Range.month)
           _FrequencyCard(
             frequencies:
-                StatsEngine.purchaseFrequency(tx, days: _days!, now: now),
+                StatsEngine.purchaseFrequency(statTx, days: _days!, now: now),
           )
         else
           _MonthlyCard(
             months: StatsEngine.monthlySpend(
-              tx,
+              statTx,
               months: _range == _Range.year ? 12 : null,
               now: now,
             ),

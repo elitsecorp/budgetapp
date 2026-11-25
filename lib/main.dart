@@ -2,8 +2,13 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'screens/home_shell.dart';
+import 'services/settings_service.dart';
 
-void main() => runApp(const ProviderScope(child: BudgetApp()));
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SettingsStore.init();
+  runApp(const ProviderScope(child: BudgetApp()));
+}
 
 class BudgetApp extends StatelessWidget {
   const BudgetApp({super.key});

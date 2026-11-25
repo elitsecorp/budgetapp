@@ -60,4 +60,28 @@ class SmsService {
       return const [];
     }
   }
+
+  /// Resolves a numeric address to a contact display name (READ_CONTACTS).
+  /// Returns null for alphanumeric senders, unknown numbers, or when the
+  /// permission is missing.
+  Future<String?> lookupContact(String address) async {
+    if (address.isEmpty || address.contains(RegExp(r'[A-Za-z]'))) return null;
+    try {
+      return await _method.invokeMethod<String>('lookupContact', {
+        'address': address,
+      });
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  /// Downloads the APK at [url] and fires the system install prompt.
+  /// Returns a human-readable status; throws [PlatformException] on error.
+  Future<String> downloadAndInstallApk(String url) async {
+    return await _method.invokeMethod<String>(
+          'downloadAndInstallApk',
+          {'url': url},
+        ) ??
+        'Unknown result';
+  }
 }

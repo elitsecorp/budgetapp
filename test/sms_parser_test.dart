@@ -151,5 +151,102 @@ void main() {
       expect(t, isNotNull);
       expect(t!.category, 'Internet & Phone');
     });
+
+    // ── Real samples from an Ethiopian SMS corpus (ETB) ───────────
+
+    test('parses a CBE transfer with ETB currency, payee and balance', () {
+      final t = ParserRegistry.parse(sms(
+        'Dear Elias Tsegaye Girmaye You have successfully transferred '
+        'ETB 100,000.00 from account 1********8521 to account '
+        '1********5979 (Mussie Tsegaye Girmay). Service charge of ETB 5.00 '
+        'and VAT(15%) of ETB 0.75 and Disaster Recovery(5%) of 0.25 with '
+        'total of ETB 100,006.00. Your current balance is ETB 2,006,413.63. '
+        'Thanks for Banking with CBE.',
+        sender: 'CBE',
+      ));
+      expect(t, isNotNull);
+      expect(t!.amount, 100000.0);
+      expect(t.type, TxType.debit);
+      expect(t.merchant, 'Mussie Tsegaye Girmay');
+      expect(t.balance, 2006413.63);
+      expect(t.currency, 'ETB');
+      expect(t.bank, 'Commercial Bank of Ethiopia');
+    });
+
+    test('parses a CBE incoming transfer as credit', () {
+      final t = ParserRegistry.parse(sms(
+        'Dear Elias Tsegaye Girmaye You have received ETB 399,999.00 from '
+        'account 1********8731 (Eyosias Adeto Keto) to your account '
+        '1********8521. Your current balance is ETB 3,006,422.63. '
+        'Thanks for Banking with CBE.',
+        sender: 'CBE',
+      ));
+      expect(t, isNotNull);
+      expect(t!.amount, 399999.0);
+      expect(t.type, TxType.credit);
+      expect(t.merchant, 'Eyosias Adeto Keto');
+      expect(t.balance, 3006422.63);
+    });
+
+    test('parses BOA debit with "Available Balance"', () {
+      final t = ParserRegistry.parse(sms(
+        'Dear Elias, your account 2*****68 was debited with ETB 3.01. '
+        'Available Balance: ETB 131,430.53. Receipt: '
+        'https://cs.bankofabyssinia.com/slip/?trx=FT26315. '
+        'Bank of Abyssinia.',
+        sender: 'BOA',
+      ));
+      expect(t, isNotNull);
+      expect(t!.amount, 3.01);
+      expect(t.type, TxType.debit);
+      expect(t.balance, 131430.53);
+      expect(t.currency, 'ETB');
+      expect(t.bank, 'Bank of Abyssinia');
+    });
+
+    test('parses CNETPay POS payment with company + datetime', () {
+      final t = ParserRegistry.parse(sms(
+        'Dear Customer, You have paid ETB 100.00 by telebirr SMS OTP for '
+        'PRESENCE MANUFACTURING PLC, Summit on 10/10/2026 19:44:12. '
+        'For attachment: https://et.hulubeje.com/print?voucher=997225',
+        sender: 'CNETPay',
+      ));
+      expect(t, isNotNull);
+      expect(t!.amount, 100.0);
+      expect(t.type, TxType.debit);
+      expect(t.merchant, 'PRESENCE MANUFACTURING PLC');
+      expect(t.date, DateTime(2026, 10, 10, 19, 44, 12));
+      expect(t.bank, 'CNETPay');
+    });
+
+    test('parses Dashen SuperApp transfer with possessive payee', () {
+      final t = ParserRegistry.parse(sms(
+        'Dear ELIAS TSEGAYE GIRMAYE, you have successfully transferred '
+        'ETB 800,000.00 from your account number 5318******021 to '
+        "Hana Chala Ibsa's account number 5449******011 on 2026-11-17 "
+        'at 03:53:59 with transaction reference: 426WDTS2632100WQ. '
+        'Your current balance is ETB 996,671.11.',
+        sender: 'DB SuperApp',
+      ));
+      expect(t, isNotNull);
+      expect(t!.amount, 800000.0);
+      expect(t.type, TxType.debit);
+      expect(t.merchant, 'Hana Chala Ibsa');
+      expect(t.date, DateTime(2026, 11, 17, 3, 53, 59));
+      expect(t.balance, 996671.11);
+      expect(t.bank, 'Dashen Bank');
+    });
+
+    test('parses utility payment (EEU) without a merchant', () {
+      final t = ParserRegistry.parse(sms(
+        'Dear customer, payment of ETB 8000 with charge value ETB 6766 for '
+        'your prepaid customer ID 82651 through telebirr has been received.',
+        sender: 'EEU Info',
+      ));
+      expect(t, isNotNull);
+      expect(t!.amount, 8000.0);
+      expect(t.type, TxType.debit);
+      expect(t.bank, 'Ethio Electric Utility');
+    });
   });
 }

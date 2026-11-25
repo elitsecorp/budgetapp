@@ -42,9 +42,97 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
+                    "lookupContact" -> {
+                        val address = call.argument<String>("address") ?: ""
+                        result.success(findContactName(address))
+                    }
+
+                    "downloadAndInstallApk" -> {
+                        val url = call.argument<String>("url") ?: ""
+                        if (url.isEmpty()) {
+                            result.error("ARGS", "URL is empty", null)
+                        } else {
+                            downloadAndInstallApk(url, result)
+                        }
+                    }
+
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    /** Display name from Contacts for a numeric address (needs READ_CONTACTS). */
+    private fun findContactName(address: String): String? {
+        if (address.any { it.isLetter() }) return null
+        return try {
+            val uri = android.provider.ContactsContract.PhoneLookup.CONTENT_FILTER_URI.buildUpon()
+                .appendPath(address)
+                .build()
+            contentResolver.query(
+                uri,
+                arrayOf(android.provider.ContactsContract.PhoneLookup.DISPLAY_NAME),
+                null, null, null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        } catch (e: SecurityException) {
+            null
+        }
+    }
+
+    /**
+     * Downloads the APK on a background thread into the cache dir, then fires
+     * the system package-installer intent via the app's FileProvider.
+     * [result] replies once the install prompt has been launched (or with an
+     * error). The only network usage in the whole app.
+     */
+    private fun downloadAndInstallApk(
+        url: String,
+        result: io.flutter.plugin.common.MethodChannel.Result
+    ) {
+        Thread {
+            try {
+                val target = java.io.File(cacheDir, "update.apk")
+                if (target.exists()) target.delete()
+
+                val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 30_000
+                connection.readTimeout = 60_000
+                connection.connect()
+                if (connection.responseCode !in 200..299) {
+                    throw java.io.IOException("HTTP ${connection.responseCode}")
+                }
+                connection.inputStream.use { input ->
+                    java.io.FileOutputStream(target).use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read == -1) break
+                            output.write(buffer, 0, read)
+                        }
+                    }
+                }
+
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    this,
+                    "$packageName.fileprovider",
+                    target
+                )
+                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/vnd.android.package-archive")
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    result.success("Downloaded ${(target.length() / 1024 / 1024)} MB — install prompt opened")
+                }
+            } catch (e: Exception) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    result.error("DOWNLOAD", e.message ?: e.javaClass.simpleName, null)
+                }
+            }
+        }.start()
     }
 
     private fun hasSmsPermission(): Boolean =

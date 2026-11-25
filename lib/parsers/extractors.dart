@@ -17,7 +17,7 @@ class AmountResult {
 // formats like "INR1234" and "Rs.1,234.56" both work. This can rarely match
 // a substring like "orders 500"; bank-specific parsers can tighten this later.
 final _currencyAmountRe = RegExp(
-  r'(?:rs\.?|inr|usd|eur|gbp|aud|cad|sgd|aed|[₹$€£])\s*(-?[\d,]+(?:\.\d{1,2})?)',
+  r'(?:rs\.?|inr|usd|eur|gbp|aud|cad|sgd|aed|etb(?=[\s\d])|birr(?=[\s\d])|ksh(?=[\s\d])|[₹$€£])\s*(-?[\d,]+(?:\.\d{1,2})?)',
   caseSensitive: false,
 );
 
@@ -55,6 +55,8 @@ AmountResult? extractAmount(String body) {
 
 String _currencyOf(String matched) {
   final s = matched.toLowerCase();
+  if (s.contains('etb') || s.contains('birr')) return 'ETB';
+  if (s.contains('ksh')) return 'KES';
   if (s.contains('rs') || s.contains('inr') || s.contains('₹')) return 'INR';
   if (s.contains(r'$') || s.contains('usd')) return 'USD';
   if (s.contains('€') || s.contains('eur')) return 'EUR';
@@ -63,7 +65,7 @@ String _currencyOf(String matched) {
 }
 
 final _debitRe = RegExp(
-  r'\b(debited|debit|deducted|withdrawn|withdrawal|spent|purchase|paid|payment|charged|booked|used\s+at|sent|deb)\b',
+  r'\b(debited|debit|deducted|withdrawn|withdrawal|spent|purchase|paid|payment|charged|booked|used\s+at|sent|transferred|deb)\b',
   caseSensitive: false,
 );
 final _creditRe = RegExp(
@@ -164,12 +166,21 @@ DateTime? _withTime(String body, Match dateMatch, DateTime date) {
 }
 
 // Merchant patterns: UPI/VPA handles first ("to SWIGGY@ybl"), then
-// "to X" (debits), then "at/by X", then "from X" (credits). Lookahead stops
-// at the next clause instead of greedy-matching.
+// possessive payees ("to Hana Chala Ibsa's account"), then "to X",
+// ALL-CAPS company after "for", then "at/by X", "from X", and finally a
+// parenthesized payee ("(Mussie Tsegaye Girmay)" — CBE style).
 final _vpaRe = RegExp(
   r'\b(?:to|vpa|paid\s+to)\s*\(?\s*([A-Za-z0-9][A-Za-z0-9._\- ]{1,30}?)\s*@',
   caseSensitive: false,
 );
+final _toPossessiveRe = RegExp(
+  r"\bto\s+([A-Za-z][A-Za-z0-9 .'/_-]{2,40}?)\s*'s\b",
+  caseSensitive: false,
+);
+final _forCompanyRe = RegExp(
+  r"\bfor\s+([A-Z][A-Z0-9 &.'/_-]{2,40}?)(?=[,]|\s+on\b|\s+at\b)",
+);
+final _parenPayeeRe = RegExp(r"\(([A-Za-z][A-Za-z0-9 .'/_-]{2,40})\)");
 final _toMerchantRe = RegExp(
   r"\bto\s+([A-Za-z0-9&.'\-_ /]{2,40}?)(?=\s+via\b|\s+upi\b|\s+on\b|\s+for\b|[,.;:\n]|\s*$)",
   caseSensitive: false,
@@ -189,7 +200,15 @@ const _junkMerchants = {
 };
 
 String? extractMerchant(String body) {
-  for (final re in [_vpaRe, _toMerchantRe, _atMerchantRe, _fromMerchantRe]) {
+  for (final re in [
+    _vpaRe,
+    _toPossessiveRe,
+    _toMerchantRe,
+    _forCompanyRe,
+    _atMerchantRe,
+    _fromMerchantRe,
+    _parenPayeeRe,
+  ]) {
     for (final m in re.allMatches(body)) {
       final cleaned = _cleanMerchant(m.group(1)!);
       if (cleaned != null) return cleaned;
@@ -216,7 +235,7 @@ String? _cleanMerchant(String raw) {
 }
 
 final _balanceRe = RegExp(
-  r'(?:(?:avl|avbl)(?:\.?\s*bal(?:ance)?|\s*lmt|\s*limit)?|a/c\s*bal|avail(?:able)?(?:\s*bal(?:ance)?|\s*limit|\s*credit\s*limit)|total\s*bal(?:ance)?|new\s*bal(?:ance)?|updated\s*bal(?:ance)?|outstanding\s*(?:limit|amount)?|balance)\s*(?:is|of|:)?\s*(?:rs\.?|inr|₹|usd|\$)?\s*([\d,]+(?:\.\d{1,2})?)',
+  r'(?:(?:avl|avbl)(?:\.?\s*bal(?:ance)?|\s*lmt|\s*limit)?|a/c\s*bal|avail(?:able)?(?:\s*bal(?:ance)?|\s*limit|\s*credit\s*limit)|total\s*bal(?:ance)?|new\s*bal(?:ance)?|updated\s*bal(?:ance)?|current\s+bal(?:ance)?|outstanding\s*(?:limit|amount)?|balance)\s*(?:is|of|:)?\s*(?:rs\.?|inr|₹|usd|\$|etb(?=[\s\d])|birr(?=[\s\d])|ksh(?=[\s\d]))?\s*([\d,]+(?:\.\d{1,2})?)',
   caseSensitive: false,
 );
 
@@ -231,7 +250,17 @@ final _otpRe = RegExp(
   caseSensitive: false,
 );
 
-bool looksLikeOtp(String body) => _otpRe.hasMatch(body);
+// The word "OTP" alone isn't enough — payment confirmations say things
+// like "paid … by telebirr SMS OTP". Only reject when an actual code is
+// being delivered (digit next to "is"/":" or a sharing/expiry warning).
+final _otpCodeRe = RegExp(
+  r"(?:is|:)\s*\d{4,8}\b|\b\d{4,8}\s+is\b|do\s+n[o']?t\s+share|"
+  r'never\s+share|expires?\s+in|valid\s+for\s+\d',
+  caseSensitive: false,
+);
+
+bool looksLikeOtp(String body) =>
+    _otpRe.hasMatch(body) && _otpCodeRe.hasMatch(body);
 
 // Lender reminders ("kindly repay Rs.4,735 due on 30-11") were the single
 // biggest source of false transactions in open-source parsers (see
@@ -298,6 +327,26 @@ String inferCategory(String? merchant, String body) {
 /// Bank identification from the sender ID (alphanumeric senders like
 /// "HDFCBK", "SBIPPG", or a phone number we can't identify).
 const bankMarkers = <(List<String>, String)>[
+  // Ethiopia
+  (['CBE'], 'Commercial Bank of Ethiopia'),
+  (['BOA', 'ABYSSINIA'], 'Bank of Abyssinia'),
+  (['AWACH'], 'Awash SACCO'),
+  (['AWASH'], 'Awash Bank'),
+  (['DASHEN', 'DB SUPERAPP'], 'Dashen Bank'),
+  (['NIB'], 'NIB Bank'),
+  (['GADAA'], 'Gadaa Bank'),
+  (['LION'], 'Lion Bank'),
+  (['ZEMEN'], 'Zemen Bank'),
+  (['ABAY'], 'Abay Bank'),
+  (['OROMIA'], 'Oromia Bank'),
+  (['AMHARA'], 'Amhara Bank'),
+  (['CNETPAY'], 'CNETPay'),
+  (['EEU'], 'Ethio Electric Utility'),
+  (['USP'], 'USP Parking'),
+  (['TELEBIRR'], 'telebirr'),
+  (['MPESA'], 'M-PESA'),
+  (['SAFARICOM'], 'Safaricom'),
+  // India
   (['HDFC'], 'HDFC Bank'),
   (['ICICI', 'ICIC'], 'ICICI Bank'),
   (['SBIN', 'SBIIN', 'SBIP', 'SBI'], 'State Bank of India'),

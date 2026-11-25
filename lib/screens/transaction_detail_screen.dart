@@ -77,6 +77,8 @@ class TransactionDetailScreen extends StatelessWidget {
                 children: [
                   _field(context, 'Merchant', t.merchant ?? 'Not detected'),
                   _field(context, 'Category', t.category ?? 'Uncategorized'),
+                  if (t.senderName != null)
+                    _field(context, 'Contact', t.senderName!),
                   _field(context, 'Bank', t.bank),
                   _field(context, 'Balance after',
                       t.balance == null
