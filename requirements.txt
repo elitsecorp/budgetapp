@@ -1,0 +1,4 @@
+# Render/CI entry point — the real requirements live with the server.
+# Kept at the repo root so `pip install -r requirements.txt` works from here
+# (Render's default build command) as well as from server/.
+-r server/requirements.txt
