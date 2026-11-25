@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Budget Admin{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<div class="stat-grid">
+  <div class="stat"><span class="stat-value">{{ user_count }}</span><span class="stat-label">Users</span></div>
+  <div class="stat"><span class="stat-value">{{ totals.tx_count }}</span><span class="stat-label">Transactions</span></div>
+  <div class="stat"><span class="stat-value">{{ totals.spent_month|money }}</span><span class="stat-label">Spent this month</span></div>
+  <div class="stat"><span class="stat-value">{{ totals.received_month|money }}</span><span class="stat-label">Received this month</span></div>
+  <div class="stat"><span class="stat-value">{{ totals.spent|money }}</span><span class="stat-label">Spent all time</span></div>
+</div>
+
+<section class="panel">
+  <h2>Daily spend — last 30 days</h2>
+  <div class="bars">
+    {% for bar in daily %}
+    <div class="bar-col" title="{{ bar.label }}: {{ bar.amount|money }} ({{ bar.count }} tx)">
+      <div class="bar" style="height: {{ bar.pct }}%"></div>
+      {% if loop.index0 % 5 == 0 %}<span class="bar-label">{{ bar.short }}</span>{% else %}<span class="bar-label"></span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<div class="two-col">
+  <section class="panel">
+    <h2>Monthly spend — last 12 months</h2>
+    <div class="bars">
+      {% for bar in monthly %}
+      <div class="bar-col" title="{{ bar.label }}: {{ bar.spent|money }}">
+        <div class="bar" style="height: {{ bar.pct }}%"></div>
+        <span class="bar-label">{{ bar.short }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Top spenders this month</h2>
+    {% if top %}
+    <table>
+      <thead><tr><th>User</th><th class="num">Txns</th><th class="num">Spent</th></tr></thead>
+      <tbody>
+        {% for row in top %}
+        <tr>
+          <td><a href="{{ url_for('admin.user_detail', user_id=row.id) }}">{{ row.name or row.phone }}</a></td>
+          <td class="num">{{ row.n }}</td>
+          <td class="num">{{ row.spent|money }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No spending recorded this month yet.</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="panel">
+  <h2>Newest users</h2>
+  {% if recent %}
+  <table>
+    <thead><tr><th>Name</th><th>Phone</th><th class="num">Txns</th><th>Joined</th></tr></thead>
+    <tbody>
+      {% for row in recent %}
+      <tr>
+        <td><a href="{{ url_for('admin.user_detail', user_id=row.id) }}">{{ row.name or "—" }}</a></td>
+        <td>{{ row.phone }}</td>
+        <td class="num">{{ row.tx_count }}</td>
+        <td>{{ row.created_at|dt }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No users yet. They appear here once the app syncs, or you <a href="{{ url_for('admin.users') }}">add one manually</a>.</p>
+  {% endif %}
+</section>
+{% endblock %}

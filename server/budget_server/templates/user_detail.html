@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}{{ user.name or user.phone }} · Budget Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="muted" href="{{ url_for('admin.users') }}">← All users</a>
+    <h1>{{ user.name or user.phone }}</h1>
+    <p class="muted">
+      {{ user.phone }}{% if user.email %} · {{ user.email }}{% endif %}
+      · joined {{ user.created_at|dt('%d %b %Y') }}
+      {% if user.last_sync_at %}· last sync {{ user.last_sync_at|dt }}{% endif %}
+    </p>
+  </div>
+  <a class="btn" href="{{ url_for('admin.user_export', user_id=user.id) }}">Export CSV</a>
+</div>
+
+<div class="stat-grid">
+  <div class="stat"><span class="stat-value">{{ totals.spent|money }}</span><span class="stat-label">Spent all time</span></div>
+  <div class="stat"><span class="stat-value">{{ totals.spent_month|money }}</span><span class="stat-label">Spent this month</span></div>
+  <div class="stat"><span class="stat-value">{{ totals.received|money }}</span><span class="stat-label">Received all time</span></div>
+  <div class="stat"><span class="stat-value">{{ totals.tx_count }}</span><span class="stat-label">Transactions</span></div>
+  <div class="stat"><span class="stat-value">{{ avg_purchase|money }}</span><span class="stat-label">Avg purchase (30d)</span></div>
+  <div class="stat"><span class="stat-value">{% if balance %}{{ balance.balance|money }}{% else %}—{% endif %}</span><span class="stat-label">Last known balance</span></div>
+</div>
+
+<div class="two-col">
+  <section class="panel">
+    <h2>Daily spend — last 30 days</h2>
+    <div class="bars">
+      {% for bar in daily %}
+      <div class="bar-col" title="{{ bar.label }}: {{ bar.amount|money }} ({{ bar.count }} tx)">
+        <div class="bar" style="height: {{ bar.pct }}%"></div>
+        {% if loop.index0 % 5 == 0 %}<span class="bar-label">{{ bar.short }}</span>{% else %}<span class="bar-label"></span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Monthly spend — last 12 months</h2>
+    <div class="bars">
+      {% for bar in monthly %}
+      <div class="bar-col" title="{{ bar.label }}: {{ bar.spent|money }}">
+        <div class="bar" style="height: {{ bar.pct }}%"></div>
+        <span class="bar-label">{{ bar.short }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<div class="two-col">
+  <section class="panel">
+    <h2>Spend by category</h2>
+    {% if categories %}
+    <ul class="cat-list">
+      {% for c in categories %}
+      <li>
+        <span class="cat-name">{{ c.category }}</span>
+        <span class="cat-track"><span class="cat-fill" style="width: {{ c.pct }}%"></span></span>
+        <span class="cat-amount">{{ c.amount|money }} <span class="muted">({{ c.count }})</span></span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">No spending recorded.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Top merchants</h2>
+    {% if merchants %}
+    <table>
+      <thead><tr><th>Merchant</th><th class="num">Txns</th><th class="num">Total</th></tr></thead>
+      <tbody>
+        {% for m in merchants %}
+        <tr><td>{{ m.merchant }}</td><td class="num">{{ m.count }}</td><td class="num">{{ m.amount|money }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No spending recorded.</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="panel">
+  <h2>Edit profile</h2>
+  <form method="post" action="{{ url_for('admin.user_save_profile', user_id=user.id) }}" class="form-grid">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>Name <input type="text" name="name" value="{{ user.name }}"></label>
+    <label>Phone * <input type="tel" name="phone" value="{{ user.phone }}" required></label>
+    <label>Email <input type="email" name="email" value="{{ user.email }}"></label>
+    <label>Notes <input type="text" name="notes" value="{{ user.notes }}"></label>
+    <button type="submit" class="btn btn-primary">Save profile</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Add transaction manually</h2>
+  <form method="post" action="{{ url_for('admin.user_add_transaction', user_id=user.id) }}" class="form-grid">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>Date * <input type="date" name="date" required></label>
+    <label>Amount * <input type="number" name="amount" step="0.01" min="0.01" required placeholder="499.00"></label>
+    <label>Type
+      <select name="type">
+        <option value="debit">Debit (spend)</option>
+        <option value="credit">Credit (income)</option>
+      </select>
+    </label>
+    <label>Merchant <input type="text" name="merchant" placeholder="Swiggy"></label>
+    <label>Category <input type="text" name="category" placeholder="Food"></label>
+    <label>Note <input type="text" name="note" placeholder="Optional"></label>
+    <button type="submit" class="btn btn-primary">Add</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Transactions <span class="muted">(showing latest 100 of {{ tx_total }})</span></h2>
+  {% if transactions %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Type</th><th class="num">Amount</th><th>Merchant</th><th>Category</th><th>Bank</th></tr>
+      </thead>
+      <tbody>
+        {% for t in transactions %}
+        <tr>
+          <td>{{ t.date|dt }}</td>
+          <td><span class="badge badge-{{ t.type }}">{{ t.type }}</span></td>
+          <td class="num">{{ t.amount|money }}</td>
+          <td>{{ t.merchant or "—" }}</td>
+          <td>{{ t.category or "—" }}</td>
+          <td>{{ t.bank or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No transactions yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
