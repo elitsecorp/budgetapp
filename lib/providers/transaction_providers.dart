@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../parsers/sms_parser.dart';
 import '../services/settings_service.dart';
 import '../services/sms_service.dart';
+import '../services/upload_service.dart';
 import '../util/identity.dart';
 
 final smsServiceProvider = Provider<SmsService>((ref) => SmsService());
@@ -14,12 +15,49 @@ final transactionsProvider =
     AsyncNotifierProvider<TransactionsNotifier, List<Transaction>>(
         TransactionsNotifier.new);
 
+/// How many transactions are still waiting to be pushed to the server.
+final unsentCountProvider = FutureProvider<int>(
+    (ref) => BudgetDatabase.instance.unsentCount());
+
 class TransactionsNotifier extends AsyncNotifier<List<Transaction>> {
   @override
   Future<List<Transaction>> build() => BudgetDatabase.instance.all();
 
   Future<void> refresh() async {
     state = await AsyncValue.guard(() => BudgetDatabase.instance.all());
+    ref.invalidate(unsentCountProvider);
+  }
+
+  /// Pushes every transaction that has never been confirmed by the server.
+  /// Successful chunks are flagged `sent` so they are never re-sent.
+  Future<String> sendUnsent({
+    required String url,
+    required String apiKey,
+    String? ownerName,
+    String? ownerPhone,
+  }) async {
+    if (ownerPhone == null || ownerPhone.trim().isEmpty) {
+      return 'Set your phone number in Profile first — the server requires it '
+          'to identify you.';
+    }
+    final db = BudgetDatabase.instance;
+    final pending = await db.unsent();
+    if (pending.isEmpty) {
+      return 'Nothing to send — every transaction is already synced.';
+    }
+
+    final outcome = await sendTransactions(
+      url: url,
+      transactions: pending,
+      ownerName: (ownerName ?? '').isEmpty ? null : ownerName,
+      ownerPhone: ownerPhone,
+      apiKey: apiKey,
+    );
+    if (outcome.sentIds.isNotEmpty) {
+      await db.markSent(outcome.sentIds);
+      await refresh();
+    }
+    return outcome.message;
   }
 
   /// Ingests one live SMS. Returns true when it produced a new transaction.

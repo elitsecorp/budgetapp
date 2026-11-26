@@ -38,7 +38,7 @@ class AppSettings {
     this.ownerName = '',
     this.ownerPhone = '',
     this.apkUrl = '',
-    this.serverUrl = 'https://httpbin.org/post',
+    this.serverUrl = 'https://budgetapp-1-q2v0.onrender.com/api/sync',
     this.serverApiKey = '',
     this.excludeTransfers = false,
     this.maxAmount = 0,
@@ -82,7 +82,8 @@ class SettingsNotifier extends Notifier<AppSettings> {
         ownerName: SettingsStore.getString(_kOwnerName, ''),
         ownerPhone: SettingsStore.getString(_kOwnerPhone, ''),
         apkUrl: SettingsStore.getString(_kApkUrl, ''),
-        serverUrl: SettingsStore.getString(_kServerUrl, 'https://httpbin.org/post'),
+        serverUrl: SettingsStore.getString(
+            _kServerUrl, 'https://budgetapp-1-q2v0.onrender.com/api/sync'),
         serverApiKey: SettingsStore.getString(_kServerApiKey, ''),
         excludeTransfers:
             SettingsStore.getBool(_kExcludeTransfers, false),

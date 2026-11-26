@@ -18,7 +18,7 @@ class BudgetDatabase {
     final path = '${await getDatabasesPath()}/budget.db';
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onConfigure: (db) => db.execute('PRAGMA journal_mode = WAL'),
       onCreate: (db, version) async {
         await db.execute('''
@@ -35,6 +35,7 @@ class BudgetDatabase {
             balance REAL,
             category TEXT,
             raw TEXT NOT NULL,
+            sent INTEGER NOT NULL DEFAULT 0,
             dedupe TEXT NOT NULL UNIQUE
           )
         ''');
@@ -45,6 +46,10 @@ class BudgetDatabase {
         if (oldVersion < 2) {
           await db.execute(
               'ALTER TABLE transactions ADD COLUMN sender_name TEXT');
+        }
+        if (oldVersion < 3) {
+          await db.execute(
+              'ALTER TABLE transactions ADD COLUMN sent INTEGER NOT NULL DEFAULT 0');
         }
       },
     );
@@ -114,5 +119,37 @@ class BudgetDatabase {
       where: 'sender = ?',
       whereArgs: [sender],
     );
+  }
+
+  /// Transactions not yet pushed to the sync server, newest first.
+  Future<List<Transaction>> unsent() async {
+    final db = await _database;
+    final rows = await db.query(
+      'transactions',
+      where: 'sent = 0',
+      orderBy: 'date DESC',
+    );
+    return rows.map(Transaction.fromMap).toList();
+  }
+
+  Future<int> unsentCount() async {
+    final db = await _database;
+    final row = await db
+        .rawQuery('SELECT COUNT(*) AS n FROM transactions WHERE sent = 0');
+    return (row.first['n'] as num).toInt();
+  }
+
+  Future<void> markSent(Iterable<int> ids) async {
+    final db = await _database;
+    final batch = db.batch();
+    for (final id in ids) {
+      batch.update(
+        'transactions',
+        {'sent': 1},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 }

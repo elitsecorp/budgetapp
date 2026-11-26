@@ -39,6 +39,7 @@ class Transaction {
   final String currency;
   final String? category;
   final String raw;
+  final bool sent; // already pushed to the sync server
 
   const Transaction({
     this.id,
@@ -53,15 +54,17 @@ class Transaction {
     this.currency = '',
     this.category,
     required this.raw,
+    this.sent = false,
   });
 
   /// Natural key so replayed/duplicate SMS are inserted only once.
   String get dedupe =>
       '$sender|${date.millisecondsSinceEpoch}|$amount|$raw';
 
-  Transaction copyWith({String? bank}) => Transaction(
+  Transaction copyWith({String? bank, bool? sent}) => Transaction(
         id: id,
         sender: sender,
+        senderName: senderName,
         bank: bank ?? this.bank,
         merchant: merchant,
         amount: amount,
@@ -71,6 +74,7 @@ class Transaction {
         currency: currency,
         category: category,
         raw: raw,
+        sent: sent ?? this.sent,
       );
 
   Map<String, Object?> toMap() => {
@@ -85,6 +89,7 @@ class Transaction {
         'balance': balance,
         'category': category,
         'raw': raw,
+        'sent': sent ? 1 : 0,
         'dedupe': dedupe,
       };
 
@@ -101,5 +106,6 @@ class Transaction {
         currency: (m['currency'] as String?) ?? '',
         category: m['category'] as String?,
         raw: m['raw'] as String,
+        sent: ((m['sent'] as num?) ?? 0) != 0,
       );
 }

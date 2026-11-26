@@ -5,7 +5,6 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../providers/transaction_providers.dart';
 import '../services/settings_service.dart';
-import '../services/upload_service.dart';
 import '../util/import_actions.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -216,18 +215,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       return;
     }
     setState(() => _busy = true);
-    final tx = await ref.read(transactionsProvider.future);
     final s = ref.read(settingsProvider);
-    final result = await sendTransactions(
-      url: url,
-      transactions: tx,
-      ownerName: s.ownerName.isEmpty ? null : s.ownerName,
-      ownerPhone: s.ownerPhone.isEmpty ? null : s.ownerPhone,
-      apiKey: s.serverApiKey,
-    );
+    final message = await ref
+        .read(transactionsProvider.notifier)
+        .sendUnsent(
+          url: url,
+          apiKey: _apiKeyCtrl.text.trim(),
+          ownerName: s.ownerName,
+          ownerPhone: s.ownerPhone,
+        );
     if (!mounted) return;
     setState(() => _busy = false);
-    _snack(result);
+    _snack(message);
   }
 
   @override
@@ -442,10 +441,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),
                   Text(
-                    'POSTs your latest transactions as JSON to the URL '
-                    'below for external processing. Default works for '
-                    'testing — replace it with your own endpoint.',
+                    'POSTs transactions that have never been sent to '
+                    'https://budgetapp-1-q2v0.onrender.com/api/sync. '
+                    'Already-synced ones are skipped automatically.',
                     style: theme.textTheme.labelSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  FutureBuilder<int>(
+                    future: ref.watch(unsentCountProvider.future),
+                    builder: (context, snap) {
+                      final n = snap.data;
+                      return Text(
+                        n == null
+                            ? '…'
+                            : n == 0
+                                ? '✓ Everything is synced'
+                                : '$n transaction(s) waiting to be sent',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: n == null || n == 0
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.error,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -479,7 +498,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   FilledButton.icon(
                     onPressed: _busy ? null : _sendToServer,
                     icon: const Icon(Icons.send),
-                    label: const Text('Send latest transactions'),
+                    label: const Text('Send unsent transactions'),
                   ),
                 ],
               ),
