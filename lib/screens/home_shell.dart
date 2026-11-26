@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../providers/transaction_providers.dart';
 import 'dashboard_screen.dart';
 import 'settings_screen.dart';
+import 'stats_screen.dart';
 import 'transactions_screen.dart';
 
 /// Bottom-nav shell. Also owns the live SMS subscription: every incoming
@@ -25,6 +26,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   static const _screens = <Widget>[
     DashboardScreen(),
     TransactionsScreen(),
+    StatsScreen(),
     SettingsScreen(),
   ];
 
@@ -73,6 +75,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             icon: Icon(Icons.receipt_long_outlined),
             selectedIcon: Icon(Icons.receipt_long),
             label: 'Transactions',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.insights_outlined),
+            selectedIcon: Icon(Icons.insights),
+            label: 'Stats',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

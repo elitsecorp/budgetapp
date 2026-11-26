@@ -1,4 +1,5 @@
 import 'package:budget_app/models/models.dart';
+import 'package:budget_app/parsers/extractors.dart';
 import 'package:budget_app/parsers/sms_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -247,6 +248,45 @@ void main() {
       expect(t!.amount, 8000.0);
       expect(t.type, TxType.debit);
       expect(t.bank, 'Ethio Electric Utility');
+    });
+
+    // ── User labels, new categories, word-boundary matching ───────
+
+    test('a user-assigned sender label overrides bank detection', () {
+      senderLabels['251994'] = 'Ethio Telecom';
+      try {
+        expect(detectBank('251994'), 'Ethio Telecom');
+        expect(detectBank('CBE'), 'Commercial Bank of Ethiopia');
+      } finally {
+        senderLabels.clear();
+      }
+    });
+
+    test('detects Family Support and Loan categories', () {
+      expect(
+        inferCategory(null, 'Rs.2,000.00 sent to MOM on 25-11-2026'),
+        'Family Support',
+      );
+      expect(
+        inferCategory(null, 'Rs.15,000.00 home loan EMI debited on 25-11'),
+        'Loan',
+      );
+      expect(inferCategory('SWIGGY', 'order paid'), 'Food & Dining');
+    });
+
+    test('word boundaries stop substring false positives', () {
+      // "moment" contains "mom", "premium" contains "emi".
+      expect(inferCategory(null, 'The moment is yours! Dial *131#'),
+          'Other');
+      expect(inferCategory(null, 'Your premium package renewal is due'),
+          'Other');
+    });
+
+    test('allCategories covers built-ins plus Other', () {
+      expect(allCategories, contains('Food & Dining'));
+      expect(allCategories, contains('Family Support'));
+      expect(allCategories, contains('Loan'));
+      expect(allCategories.last, 'Other');
     });
   });
 }

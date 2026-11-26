@@ -1,20 +1,120 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../models/models.dart';
+import '../parsers/extractors.dart';
+import '../providers/transaction_providers.dart';
+import '../services/settings_service.dart';
 import '../util/format.dart';
 import '../util/reason.dart';
 
 /// Full breakdown of one transaction: parsed fields, the classified reason,
-/// and the original raw SMS it was parsed from.
-class TransactionDetailScreen extends StatelessWidget {
+/// and the original raw SMS it was parsed from. The category row opens a
+/// picker so the user can correct/assign categories.
+class TransactionDetailScreen extends ConsumerStatefulWidget {
   final Transaction transaction;
   const TransactionDetailScreen({super.key, required this.transaction});
 
   @override
+  ConsumerState<TransactionDetailScreen> createState() =>
+      _TransactionDetailScreenState();
+}
+
+class _TransactionDetailScreenState
+    extends ConsumerState<TransactionDetailScreen> {
+  late Transaction _tx;
+
+  @override
+  void initState() {
+    super.initState();
+    _tx = widget.transaction;
+  }
+
+  Future<void> _pickCategory() async {
+    final settings = ref.read(settingsProvider);
+    final options = <String>{
+      ...allCategories,
+      ...settings.customCategories,
+      if (_tx.category != null && _tx.category != 'Other') _tx.category!,
+    }.toList()
+      ..sort();
+
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Text('Choose category',
+                style: Theme.of(ctx).textTheme.titleMedium),
+          ),
+          for (final c in options)
+            ListTile(
+              dense: true,
+              leading: Icon(iconForCategory(c), size: 20),
+              title: Text(c),
+              trailing: c == _tx.category
+                  ? Icon(Icons.check,
+                      color: Theme.of(ctx).colorScheme.primary)
+                  : null,
+              onTap: () => Navigator.of(ctx).pop(c),
+            ),
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.add, size: 20),
+            title: const Text('Add custom category…'),
+            onTap: () async {
+              final controller = TextEditingController();
+              final custom = await showDialog<String>(
+                context: ctx,
+                builder: (dctx) => AlertDialog(
+                  title: const Text('New category'),
+                  content: TextField(
+                    controller: controller,
+                    autofocus: true,
+                    decoration:
+                        const InputDecoration(hintText: 'e.g. Education'),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dctx).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.of(dctx)
+                          .pop(controller.text.trim()),
+                      child: const Text('Add'),
+                    ),
+                  ],
+                ),
+              );
+              if (custom == null || custom.isEmpty) return;
+              await ref
+                  .read(settingsProvider.notifier)
+                  .addCustomCategory(custom);
+              if (!ctx.mounted) return;
+              Navigator.of(ctx).pop(custom);
+            },
+          ),
+        ],
+      ),
+    );
+
+    if (chosen == null || !mounted) return;
+    await ref
+        .read(transactionsProvider.notifier)
+        .setCategory(_tx, chosen);
+    if (!mounted) return;
+    setState(() => _tx = _tx.copyWith(category: chosen));
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final t = transaction;
+    final t = _tx;
     final isDebit = t.type == TxType.debit;
     final color = isDebit ? theme.colorScheme.primary : Colors.green;
 
@@ -76,7 +176,18 @@ class TransactionDetailScreen extends StatelessWidget {
               child: Column(
                 children: [
                   _field(context, 'Merchant', t.merchant ?? 'Not detected'),
-                  _field(context, 'Category', t.category ?? 'Uncategorized'),
+                  ListTile(
+                    dense: true,
+                    title: Text('Category',
+                        style: theme.textTheme.bodyMedium),
+                    subtitle: Text(
+                      t.category ?? 'Uncategorized',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    trailing: const Icon(Icons.edit_outlined, size: 18),
+                    onTap: _pickCategory,
+                  ),
                   if (t.senderName != null)
                     _field(context, 'Contact', t.senderName!),
                   _field(context, 'Bank', t.bank),

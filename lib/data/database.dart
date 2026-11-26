@@ -152,4 +152,48 @@ class BudgetDatabase {
     }
     await batch.commit(noResult: true);
   }
+
+  /// Distinct senders with their current label and transaction count.
+  Future<List<SenderRow>> distinctSenders() async {
+    final db = await _database;
+    final rows = await db.rawQuery(
+      'SELECT sender, bank, COUNT(*) AS n FROM transactions '
+      'GROUP BY sender ORDER BY n DESC',
+    );
+    return rows
+        .map((r) => SenderRow(
+              sender: r['sender'] as String,
+              bank: r['bank'] as String,
+              count: (r['n'] as num).toInt(),
+            ))
+        .toList();
+  }
+
+  /// Renames the institution label for every stored row of [sender].
+  Future<void> updateBankForSender(String sender, String bank) async {
+    final db = await _database;
+    await db.update(
+      'transactions',
+      {'bank': bank},
+      where: 'sender = ?',
+      whereArgs: [sender],
+    );
+  }
+
+  Future<void> updateCategory(int id, String category) async {
+    final db = await _database;
+    await db.update(
+      'transactions',
+      {'category': category},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+}
+
+class SenderRow {
+  final String sender;
+  final String bank;
+  final int count;
+  const SenderRow({required this.sender, required this.bank, required this.count});
 }

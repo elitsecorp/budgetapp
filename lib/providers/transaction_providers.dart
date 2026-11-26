@@ -19,6 +19,10 @@ final transactionsProvider =
 final unsentCountProvider = FutureProvider<int>(
     (ref) => BudgetDatabase.instance.unsentCount());
 
+/// Distinct senders for the Settings "Senders & banks" list.
+final sendersProvider = FutureProvider<List<SenderRow>>(
+    (ref) => BudgetDatabase.instance.distinctSenders());
+
 class TransactionsNotifier extends AsyncNotifier<List<Transaction>> {
   @override
   Future<List<Transaction>> build() => BudgetDatabase.instance.all();
@@ -26,6 +30,22 @@ class TransactionsNotifier extends AsyncNotifier<List<Transaction>> {
   Future<void> refresh() async {
     state = await AsyncValue.guard(() => BudgetDatabase.instance.all());
     ref.invalidate(unsentCountProvider);
+    ref.invalidate(sendersProvider);
+  }
+
+  /// Re-categorizes one transaction (user correction from the detail screen).
+  Future<void> setCategory(Transaction t, String category) async {
+    if (t.id == null) return;
+    await BudgetDatabase.instance.updateCategory(t.id!, category);
+    await refresh();
+  }
+
+  /// Renames a sender to its bank/institution everywhere: stored rows and
+  /// the parse-time label map (so future messages get it too).
+  Future<void> renameSender(String sender, String label) async {
+    await BudgetDatabase.instance.updateBankForSender(sender, label);
+    await ref.read(settingsProvider.notifier).setSenderLabel(sender, label);
+    await refresh();
   }
 
   /// Pushes every transaction that has never been confirmed by the server.

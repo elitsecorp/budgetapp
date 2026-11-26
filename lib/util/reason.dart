@@ -76,6 +76,10 @@ IconData iconForCategory(String? category) {
       return Icons.account_balance_wallet;
     case 'Money Transfer':
       return Icons.swap_horiz;
+    case 'Family Support':
+      return Icons.family_restroom;
+    case 'Loan':
+      return Icons.account_balance;
     default:
       return Icons.payments_outlined;
   }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../data/database.dart';
 import '../providers/transaction_providers.dart';
 import '../services/settings_service.dart';
 import '../util/import_actions.dart';
@@ -128,6 +129,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await ref.read(settingsProvider.notifier).setContactLookup(false);
     }
     setState(() {});
+  }
+
+  Future<void> _renameSender(SenderRow row) async {
+    final controller = TextEditingController(
+      text: row.bank == row.sender ? '' : row.bank,
+    );
+    final label = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Label "${row.sender}"'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Bank / institution name',
+            hintText: 'e.g. Commercial Bank of Ethiopia',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (label == null || !mounted) return;
+    await ref
+        .read(transactionsProvider.notifier)
+        .renameSender(row.sender, label);
+    if (!mounted) return;
+    _snack(label.isEmpty
+        ? 'Label removed.'
+        : '"${row.sender}" is now "$label".');
   }
 
   Future<void> _editMaxAmount() async {
@@ -364,6 +404,73 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
+          // ── Senders & banks ──────────────────────────────────────
+          Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Senders & banks',
+                      style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Rename any number or short-code to its bank or '
+                    'institution — applies to old and future messages.',
+                    style: theme.textTheme.labelSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  FutureBuilder<List<SenderRow>>(
+                    future: ref.watch(sendersProvider.future),
+                    builder: (context, snap) {
+                      final rows = snap.data;
+                      if (rows == null) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Text('…'),
+                        );
+                      }
+                      if (rows.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text('No senders yet.',
+                              style: theme.textTheme.bodyMedium),
+                        );
+                      }
+                      return Column(
+                        children: [
+                          for (final r in rows.take(30))
+                            ListTile(
+                              dense: true,
+                              leading: const Icon(Icons.account_balance,
+                                  size: 20),
+                              title: Text(r.sender),
+                              subtitle: Text(
+                                r.bank == r.sender
+                                    ? 'Not labelled yet — tap to rename'
+                                    : r.bank,
+                              ),
+                              trailing: Text('${r.count}',
+                                  style: theme.textTheme.labelSmall),
+                              onTap: () => _renameSender(r),
+                            ),
+                          if (rows.length > 30)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text('…and ${rows.length - 30} more',
+                                  style: theme.textTheme.labelSmall),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // ── Data ─────────────────────────────────────────────────
           Card(
             margin: EdgeInsets.zero,
@@ -400,8 +507,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Text('App updates', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),
                   Text(
-                    'Paste a direct .apk download link — the app downloads '
-                    'it and opens the installer.',
+                    'Downloads the latest build and opens the installer. '
+                    'Pre-filled with the official release channel — change '
+                    'it only to test another build.',
                     style: theme.textTheme.labelSmall,
                   ),
                   const SizedBox(height: 12),
@@ -409,7 +517,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     controller: _apkCtrl,
                     keyboardType: TextInputType.url,
                     decoration: const InputDecoration(
-                      hintText: 'https://…/app-release.apk',
+                      hintText:
+                          'https://github.com/…/releases/latest/download/budget-app.apk',
                       border: OutlineInputBorder(),
                       isDense: true,
                       prefixIcon: Icon(Icons.link),

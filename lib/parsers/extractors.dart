@@ -322,14 +322,36 @@ const categoryRules = <String, List<String>>{
     'hotel', 'flight', 'irctc',
   ],
   'Salary & Income': ['salary', 'payroll', 'interest', 'cashback', 'refund'],
+  'Family Support': [
+    'family', 'mom', 'dad', 'mother', 'father', 'parents', 'brother',
+    'sister',
+  ],
+  'Loan': ['loan', 'emi', 'installment', 'principal', 'lender'],
   // Keep last: almost every SMS mentions UPI/transfer.
-  'Money Transfer': ['upi', 'imps', 'neft', 'rtgs', 'transfer', 'sent to'],
+  'Money Transfer': [
+    'upi', 'imps', 'neft', 'rtgs', 'transfer', 'transferred', 'sent to',
+  ],
+};
+
+/// Every category the app knows (built-in detection order) plus "Other".
+final allCategories = <String>[...categoryRules.keys, 'Other'];
+
+// Compiled once: keyword → word-boundary pattern. Word boundaries stop
+// "mom" from matching inside "moment" and "emi" inside "premium".
+final _categoryPatterns = {
+  for (final entry in categoryRules.entries)
+    entry.key: [
+      for (final kw in entry.value)
+        RegExp('\\b${RegExp.escape(kw)}\\b', caseSensitive: false),
+    ],
 };
 
 String inferCategory(String? merchant, String body) {
   final hay = '${merchant ?? ''} $body'.toLowerCase();
-  for (final entry in categoryRules.entries) {
-    if (entry.value.any(hay.contains)) return entry.key;
+  for (final entry in _categoryPatterns.entries) {
+    for (final pattern in entry.value) {
+      if (pattern.hasMatch(hay)) return entry.key;
+    }
   }
   return 'Other';
 }
@@ -372,7 +394,14 @@ const bankMarkers = <(List<String>, String)>[
   (['FDRL'], 'Federal Bank'),
 ];
 
+/// User-assigned labels for senders (lowercased sender → display name),
+/// loaded from Settings at startup — lets the user rename any number to
+/// its bank/institution ("251994" → "Ethio Telecom").
+final Map<String, String> senderLabels = {};
+
 String detectBank(String sender) {
+  final custom = senderLabels[sender.toLowerCase()];
+  if (custom != null && custom.isNotEmpty) return custom;
   final s = sender.toUpperCase();
   for (final (markers, name) in bankMarkers) {
     if (markers.any(s.contains)) return name;

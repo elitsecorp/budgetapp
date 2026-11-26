@@ -61,7 +61,8 @@ class Transaction {
   String get dedupe =>
       '$sender|${date.millisecondsSinceEpoch}|$amount|$raw';
 
-  Transaction copyWith({String? bank, bool? sent}) => Transaction(
+  Transaction copyWith({String? bank, bool? sent, String? category}) =>
+      Transaction(
         id: id,
         sender: sender,
         senderName: senderName,
@@ -72,7 +73,7 @@ class Transaction {
         date: date,
         balance: balance,
         currency: currency,
-        category: category,
+        category: category ?? this.category,
         raw: raw,
         sent: sent ?? this.sent,
       );
